@@ -7,10 +7,12 @@ from agents.DeepCFR.AdvantageMemory import AdvantageMemory
 
 """
 To Do: So, I'm planning to 
-    1) make the codemore modular
+    1) make the code more modular
     2) I need to figure out what's wrong by putting print statements everywhere
     3) Need to check the hyperparameters
     4) If it still doesn't help then think over the theory again!
+    5) Should we try adding pertubation?
+    6) Should we add LinearCFR?
 """
 
 
@@ -30,12 +32,12 @@ class DeepCFRAgent(object):
         self.card = random.choice([0, 1])
 
     def compute_advantage(self, infoset):
-        return self.advantage_net(infoset)
+        with torch.no_grad():
+            return self.advantage_net(infoset)
 
     def sample_advantage_and_train(self, batch_size):
         if self.advantage_memory.get_memory_size() > batch_size:
             for _ in range(10):
-
                 data = self.advantage_memory.sample(batch_size)
                 r = []
                 I = []
@@ -55,10 +57,14 @@ class DeepCFRAgent(object):
 
                 weight_sum = t.sum()
 
+                weights = t / weight_sum
+
                 self.advantage_optim.zero_grad()
 
-                loss = (t * (torch.pow(r - self.advantage_net(I), 2)).sum(-1)).sum()
-                loss /= batch_size * weight_sum
+                loss = (
+                    weights * (torch.pow(r - self.advantage_net(I), 2)).sum(-1)
+                ).sum()
+                loss /= batch_size
                 loss.backward()
 
                 """
@@ -88,10 +94,12 @@ class DeepCFRAgent(object):
         t = torch.Tensor(t)
         weight_sum = t.sum()
 
+        weights = t / weight_sum
+
         self.policy_optim.zero_grad()
 
-        loss = (t * (torch.pow(strategies - self.policy_net(I), 2)).sum(-1)).sum()
-        loss /= batch_size * weight_sum
+        loss = (weights * (torch.pow(strategies - self.policy_net(I), 2)).sum(-1)).sum()
+        loss /= batch_size
         loss.backward(retain_graph=True)
 
         torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 1)

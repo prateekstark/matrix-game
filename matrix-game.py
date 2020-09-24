@@ -17,5 +17,5 @@ if __name__ == "__main__":
     ]
 
     print("Payoff Matrix: {}".format(payoff_matrix))
-    runner = CFRRunner(payoff_matrix, num_iterations=100, num_runs=1000, K=500)
+    runner = CFRRunner(payoff_matrix, num_iterations=1000, num_runs=1000, K=10)
     runner.run()

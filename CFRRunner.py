@@ -7,15 +7,27 @@ from copy import deepcopy
 from statistics import mean
 
 
+"""
+Two randomization techniques we are using for avoiding local minima are:
+    1) Restart the DeepCFR Advantage Networks from scratch after some iterations
+    2) Pertubation in strategies which favours a single action. This could improve some exploration.
+"""
+
+"""
+Things to notice:
+    1) DeepCFR is quite sensitive to initializations!
+"""
+
+
 class CFRRunner(object):
     def __init__(
         self,
         payoff_matrix,
         num_iterations,
-        K=1000,
+        K=100,
         num_runs=1000,
-        advantage_batch_size=1000,
-        policy_batch_size=1000,
+        advantage_batch_size=32,
+        policy_batch_size=32,
         advantage_memory_size=20000,
         strategy_memory_size=20000,
     ):
@@ -39,12 +51,16 @@ class CFRRunner(object):
 
     def run(self):
         for i in range(self.num_runs):
-            self.DeepCFR()
+            if i % 100 == 0:
+                self.set_advantage_weights_zero()
+
+            self.DeepCFR(i * self.num_iterations)
+
             print()
             print("Game Strength: {}".format(self.evaluate()))
             print()
 
-    def DeepCFR(self):
+    def DeepCFR(self, start_iter):
 
         """
         Initialize each player's advantage network, such that it returns 0 for all outputs.
@@ -57,10 +73,12 @@ class CFRRunner(object):
             """
             for agent in self.agents:
                 agent.deal_card()
-                # agent.advantage_net.init_weights()
+
             for player in self.player_list:
                 for traversal in range(self.K):
-                    self.TRAVERSE([], self.strategy_memory, (iteration + 1), player)
+                    self.TRAVERSE(
+                        [], self.strategy_memory, (iteration + 1 + start_iter), player
+                    )
                 self.agents[player].sample_advantage_and_train(
                     self.advantage_batch_size
                 )
@@ -71,11 +89,14 @@ class CFRRunner(object):
 
         for policy_iteration in range(100):
             for player in self.player_list:
-                # print(self.strategy_memory.get_size(player))
                 data = self.strategy_memory.sample(player, self.policy_batch_size)
                 self.agents[player].train_policy_net(data, self.policy_batch_size)
-            if(iteration % 10 == 0):
-                print("Partial Game Strength in iteration {}: {}".format(policy_iteration, self.evaluate()))
+            if policy_iteration % 10 == 0:
+                print(
+                    "Partial Game Strength in iteration {}: {}".format(
+                        policy_iteration, self.evaluate()
+                    )
+                )
 
     def TRAVERSE(self, history, strategy_memory, t, p):
         """
@@ -101,9 +122,7 @@ class CFRRunner(object):
             Compute strategy, from advantage network
             """
             I = self.agents[p].get_infoset(history)
-            with torch.no_grad():
-                advantage_values = self.agents[p].compute_advantage(I)
-
+            advantage_values = self.agents[p].compute_advantage(I)
             advantage_values = torch.clamp(advantage_values, min=0)
 
             strategy = (
@@ -138,8 +157,7 @@ class CFRRunner(object):
 
         else:
             I = self.agents[1 - p].get_infoset(history)
-            with torch.no_grad():
-                advantage_values = self.agents[1 - p].compute_advantage(I)
+            advantage_values = self.agents[1 - p].compute_advantage(I)
             advantage_values = torch.clamp(advantage_values, min=0)
             strategy = (
                 advantage_values / advantage_values.sum()
@@ -160,6 +178,7 @@ class CFRRunner(object):
 
             action = random.choices([0, 1, 2], weights=strategy, k=1)[0]
             history.append({"action": action})
+
             return self.TRAVERSE(history, strategy_memory, t, p)
 
     def evaluate(self):
@@ -183,3 +202,25 @@ class CFRRunner(object):
             rewards.append(episode_reward)
 
         return mean(rewards)
+
+    def add_strategy_pertubation1(self, strategy):
+        index = (strategy == 1).nonzero()
+        if index.shape[0] == 0:
+            return strategy
+
+        assert index.shape == (1, 1)
+        index = index.item()
+
+        torch.fill_(strategy, 0.15 / strategy.shape[0])
+
+        strategy[index] += 0.85
+
+        return strategy
+
+    def add_strategy_pertubation2(self, strategy):
+        strategy += 0.2
+        return strategy / strategy.sum()
+
+    def set_advantage_weights_zero(self):
+        for agent in self.agents:
+            agent.advantage_net.init_weights()

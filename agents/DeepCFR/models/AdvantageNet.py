@@ -27,6 +27,16 @@ class AdvantageNet(nn.Module):
         nn.init.normal_(self.fc3.bias)
         nn.init.normal_(self.fc4.bias)
 
+    def init_zero_weights(self):
+        nn.init.zeros_(self.fc1.weight)
+        nn.init.zeros_(self.fc2.weight)
+        nn.init.zeros_(self.fc3.weight)
+        nn.init.zeros_(self.fc4.weight)
+        nn.init.zeros_(self.fc1.bias)
+        nn.init.zeros_(self.fc2.bias)
+        nn.init.zeros_(self.fc3.bias)
+        nn.init.zeros_(self.fc4.bias)
+
 if __name__ == '__main__':
     import torch
     net = AdvantageNet(6)
