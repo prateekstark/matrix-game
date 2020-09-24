@@ -2,6 +2,8 @@
 
 This is a Pytorch implementation of the Matrix Game, a toy problem for analyzing Multi-Agent Reinforcement Learning.
 
+The agents include Simplified Action Decoder and DeepCFR techniques.
+
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change. Also, please use Black for formatting the code.
